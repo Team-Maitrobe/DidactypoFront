@@ -6,7 +6,6 @@ import VerifConnection from '../elements/CompteUtilisateur/VerifConnexion.jsx';
 export default function Apprendre() {
   
   return (
-    <>
     <VerifConnection>
       <main className={style.apprendre}>
         <div className={style.texteapprendre}>
@@ -21,6 +20,5 @@ export default function Apprendre() {
         </div>
       </main>
     </VerifConnection>
-    </>
   );
 }

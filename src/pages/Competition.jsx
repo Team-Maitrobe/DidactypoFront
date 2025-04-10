@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { api, getPseudo } from "../api";
 import style from '../style/Competition.module.css';
 import VerifConnection from '../elements/CompteUtilisateur/VerifConnexion.jsx';
@@ -8,14 +8,13 @@ import Loading from '../elements/Components/Loading.jsx';
 
 export default function Competition() {
     const [idSemaine, setIdSemaine] = useState(null);
-    const [userPseudo, setUserPseudo] = useState(getPseudo());
+    const [userPseudo] = useState(getPseudo());
     const [defis, setDefis] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
     const [isReady, setIsReady] = useState(false);
     const [startTime, setStartTime] = useState(null);
     const [endTime, setEndTime] = useState(null);
-    const [elapsedTime, setElapsedTime] = useState(null);
     const [lastScore, setLastScore] = useState(null);
     const [currentDefi, setCurrentDefi] = useState(null);
 
@@ -23,8 +22,10 @@ export default function Competition() {
         try {
             const response = await api.get("/defi_semaine");
             setIdSemaine(response.data.numero_defi);
+        } catch (fetchError) {
+            console.error("Error fetching weekly challenge ID:", fetchError);
+            setError("Erreur lors de la récupération de l'ID du défi de la semaine.");
         }
-        catch { }
     }
 
     // Fetch initial des défis
@@ -34,8 +35,10 @@ export default function Competition() {
             try {
                 const defisResponse = await api.get("/defis");
                 setDefis(defisResponse.data);
-                setCurrentDefi(defisResponse.data[idSemaine]);
-            } catch (err) { }
+            } catch (err) {
+                console.error("Error fetching challenges:", err);
+                setError('Erreur lors de la récupération des défis.');
+            }
         };
         fetchDefis();
     }, []);
@@ -54,6 +57,7 @@ export default function Competition() {
                         setLastScore(sortedReussites[0].temps_reussite);
                     }
                 } catch (reussitesError) {
+                    console.error("Error fetching last score:", reussitesError);
                 }
             }
         };
@@ -70,7 +74,6 @@ export default function Competition() {
             if (defi) {
                 setCurrentDefi(defi);
                 setError(null);
-            } else {
             }
             setIsLoading(false);
         }
@@ -82,7 +85,6 @@ export default function Competition() {
         setIsReady(true);
         setStartTime(new Date());
         setEndTime(null);
-        setElapsedTime(null);
     };
 
     const gestionDefiQuotidien = async (userPseudo) => {
@@ -124,7 +126,8 @@ export default function Competition() {
                 if (cptDefi === 7) await api.post(`/gain_badge/?pseudo_utilisateur=${userPseudo}&id_badge=5`);
                 if (cptDefi === 14) await api.post(`/gain_badge/?pseudo_utilisateur=${userPseudo}&id_badge=6`);
                 if (cptDefi === 20) await api.post(`/gain_badge/?pseudo_utilisateur=${userPseudo}&id_badge=7`);
-            } catch (error) {
+            } catch (badgeError) {
+                console.error("Error updating badge:", badgeError);
             }
         } catch (error) {
             if (error.response && error.response.status === 404) {
@@ -133,9 +136,11 @@ export default function Competition() {
                     await api.put(`/utilisateurs/${userPseudo}/cptDefi`, { cptDefi });
                     return cptDefi;
                 } catch (putError) {
+                    console.error("Error setting initial daily challenge count:", putError);
                     throw putError;
                 }
             }
+            console.error("Error in daily challenge management:", error);
             throw error;
         }
     };
@@ -144,14 +149,18 @@ export default function Competition() {
     useEffect(() => {
         if (startTime && endTime) {
             const timeDiff = (endTime - startTime) / 1000;
-            setElapsedTime(timeDiff);
             setIsReady(false);
             setLastScore(timeDiff);
 
             const updateDatabase = async () => {
+                if (!currentDefi) {
+                    console.error("Cannot update database: currentDefi is not set.");
+                    setError("Erreur interne : Défi actuel non défini.");
+                    return;
+                }
                 try {
                     const payload = {
-                        id_defi: defis[idSemaine - 1]?.id_defi,
+                        id_defi: currentDefi.id_defi,
                         pseudo_utilisateur: userPseudo,
                         temps_reussite: timeDiff,
                     };
@@ -165,7 +174,9 @@ export default function Competition() {
                             }
                         });
                     } else {
-                        console.error("No token found in localStorage");
+                        console.error("No token found in localStorage for submitting score");
+                        setError("Non connecté pour la soumission du score.");
+                        return;
                     }
                     await api.post(`/stat/?pseudo_utilisateur=${userPseudo}&type_stat=${typeStat}&valeur_stat=${payload.temps_reussite}`);
 
@@ -173,7 +184,9 @@ export default function Competition() {
 
                     window.location.reload();
 
-                } catch (error) {
+                } catch (dbError) {
+                    console.error("Error updating database or stats:", dbError);
+                    setError('Erreur lors de la sauvegarde du score.');
                 }
             };
 
@@ -206,7 +219,7 @@ export default function Competition() {
                                         Commencer le défi
                                     </button>
                                     <h3>
-                                        Si jamais tu as du mal, n'hésite pas à aller consulter l'onglet "Apprendre" ! Bonne chance !
+                                        Si jamais tu as du mal, n\'hésite pas à aller consulter l\'onglet \"Apprendre\" ! Bonne chance !
                                     </h3>
                                 </div>
                             )}
@@ -231,5 +244,4 @@ export default function Competition() {
             </main>
         </VerifConnection>
     );
-
 }
